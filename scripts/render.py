@@ -98,7 +98,7 @@ def mparse(t):
                 sc = -1
             elif k2 == "sup":
                 sc = 1
-        out.append((c, sc, tuple(b for k2, b in stack if k2 == "bar")))
+        out.append((" " if c == "\ue000" else c, sc, tuple(b for k2, b in stack if k2 == "bar")))
         i += 1
     return out, bars
 
@@ -122,6 +122,21 @@ def tlen(t, bold, fs):
     return sum(font.text_length(x, fontsize=f) for x, font, f, dy, b in runs(t, bold, fs)[0])
 
 
+def _glue_bars(t):
+    """Spaces inside ~{...} (nested) become U+E000 so an overline group never wraps or breaks."""
+    out, depth, i = [], 0, 0
+    while i < len(t):
+        if t[i] == "~" and i + 1 < len(t) and t[i + 1] == "{":
+            depth += 1; out.append("~{"); i += 2; continue
+        if t[i] == "{" and depth:
+            depth += 1
+        elif t[i] == "}" and depth:
+            depth -= 1
+        out.append("\ue000" if (t[i] == " " and depth) else t[i])
+        i += 1
+    return "".join(out)
+
+
 def _unspace(m):
     return m.group(0).replace(" ", "")
 
@@ -143,6 +158,7 @@ def wrap(segs, fs, maxw):
                 flush()
                 continue
             part = re.sub(r"[_^]\{[^{}]*\}", _unspace, part)
+            part = _glue_bars(part)
             for tok in re.findall(r"\s+|\S+", part):
                 w = tlen(tok, bold, fs)
                 if tok.isspace():
